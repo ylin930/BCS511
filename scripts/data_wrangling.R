@@ -1,7 +1,7 @@
 library(tidyverse)
 library(tibble)
 
-df = read.csv("/Users/yinglin/Box/Self/OA_nav/data/passive_OA_YA.csv")
+df = read.csv("/Users/yinglin/BCS511_project1/data/passive_OA_YA.csv")
 df = as_tibble(df)
 
 # new df with variables of interest
