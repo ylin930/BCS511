@@ -1,0 +1,74 @@
+---
+title: "Older Adults Navigation"
+author: "Ying"
+date: "10/1/2019"
+output:html_document: default
+---
+
+```{r setup, include=FALSE, comment=NA, warning=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+## Examining age-related decline in navigation abilities
+
+```{r importing data, comment=NA, warning=FALSE, echo=FALSE}
+library(tidyverse)
+library(tibble)
+library(data.table)
+library(formattable)
+
+df = read.csv("/Users/yinglin/BCS511_project1/data/passive_OA_YA.csv")
+df = as_tibble(df)
+
+# new df with variables of interest
+df_new = select(df, -c(ethnic.category, racial.category, handedness, education, prescription.meds, head.injuries, HEAD.0, first.language))
+
+# rename variable & assigned variable as  1 or 2 to OA and YA respectively 
+df_new = df_new %>% rename(subject = X)
+df_new$groups[df$group=="Older Adults"]<-"1"
+df_new$groups[df$group=="Young Adults"]<-"2"
+
+# subset data separated by older adults and young adults
+df_OA = filter(df_new, age>60)
+df_YA = filter(df_new, age<60)
+```
+
+## Table
+
+Summary of average age, working memory (WM), within-route pointing error, and between-route pointing error for the passive older adults and young adults group
+
+
+```{r table, comment=NA, warning=FALSE}
+summary_data_wide =
+  df_new %>% group_by(group) %>% 
+  summarise(MeanAge = mean(age, na.rm = TRUE),
+            MeanWM = mean(symspan_partial, na.rm = TRUE),
+            MeanWithinroute = mean(within, na.rm = TRUE),
+            MeanBetweenroute = mean(between, na.rm = TRUE))
+
+formattable(summary_data_wide)
+
+summary_data = summary_data_wide %>% gather(key = condition, value = mean, -group)
+
+
+```
+
+## Figure
+
+Bar graph showing mean of variables of interest
+
+note: means for Between- and Within-route are error values (lower is better)
+
+
+```{r figure}
+p<-ggplot(data = summary_data,aes(x=condition,y=mean, fill = group)) + 
+  geom_bar(stat="identity", width =.5, position = "dodge") +
+  labs (title = "Summary", y = "Mean") + 
+  scale_fill_discrete(name = "Group", labels = c("Older Adults", "Young Adults")) +
+  scale_x_discrete(breaks = c("MeanAge","MeanBetweenroute", "MeanWithinroute", "MeanWM"),
+                   labels = c("Age","Between-route", "Within-route", "Working Memory")) +
+  scale_y_continuous(expand = c(0,0), limits=c(0,90)) +
+  theme_bw() + theme(plot.title = element_text(hjust=0.5),panel.border=element_blank(), panel.grid.major = element_blank(), 
+                     panel.grid.minor = element_blank(),axis.line=element_line(color="black",size=.5,linetype="solid"))
+
+print(p)
+```
