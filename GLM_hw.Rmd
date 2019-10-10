@@ -1,0 +1,60 @@
+---
+title: "GAM"
+author: "Ying"
+date: "10/10/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r library}
+library(tidyverse)
+library(ggplot2)
+library(mgcv)
+```
+
+# Simulated data and plot
+
+Note: code for simulated data is provided by http://environmentalcomputing.net/intro-to-gams/"
+
+```{r data, echo=T, comment=NA}
+# creating a simulated data - code for simulated data provided by "http://environmentalcomputing.net/intro-to-gams/"
+x = seq(0, pi * 2, 0.1)
+sin_x = sin(x)
+y = sin_x + rnorm(n = length(x), mean = 0, sd = sd(sin_x / 2))
+d = data.frame(y,x)
+
+# plot simulated data
+p <- ggplot(d, aes(x,y)) + geom_point() 
+print(p)
+```
+
+# Model fit
+
+Fit using lm and gam
+GAM fits data better (AIC = 31.8 vs 99.2 for lm)
+
+```{r, echo=T, comment=NA}
+# Fitting data using GAM
+model_lm = gam(y ~ x, data = d)
+summary(model_lm)
+
+model_gam = gam(y ~ s(x, bs="cr"), data = d) #  s:smooth term; bc = cr: type of smooth
+summary(model_gam)
+
+AIC(model_lm)
+AIC(model_gam)
+
+# plot fit 
+p_lm <- ggplot(d, aes(x,y)) + geom_point() + geom_smooth(method = "gam", formula = y~x)
+
+print(p_lm)
+
+p_gam <- ggplot(d, aes(x,y)) + geom_point() + geom_smooth(method = "gam", formula = y~s(x, bs="cr"))
+
+print(p_gam)
+
+```
