@@ -1,0 +1,217 @@
+---
+title: "Mini-lab 1"
+author: "Ying Lin"
+date: "10/24/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE, comment=NA, warning=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r libraries, results='hide', message=FALSE, comment=NA, warning=FALSE}
+library("tidyverse")
+library("magrittr")
+library("mgcv")      # for GAMs
+library("broom")     # for elegant handling of model outputs
+library("ppcor")
+library("lemon")
+
+
+# devtools::install_github("git@github.com:tfjaeger/BCS511minilab1.git")
+# library("BCS511minilab1")
+
+theme_set(theme_bw())
+
+# load data from library 
+load("data/spikes.rda")
+
+# adding Stimulus variable
+spikes %<>%
+  mutate(
+    Stimulus = BinocularR * DisparityFar
+  )
+```
+
+```{r, comment=NA, warning=FALSE, results='hide'}
+# glm model
+
+d.models = 
+  spikes %>%
+  group_by(ID) %>%
+  do(
+    model = glm(Spikes ~ 1 + Stimulus + Choice, family = gaussian(identity), data = .)
+  ) 
+```
+
+```{r model_glm, comment=NA, warning=FALSE, results='hide'}
+d.models %>%
+  glance(model)
+
+d.models %>%
+  # Set parametric to FALSE if you want the smooth terms instead (for gams only)
+  tidy(model, parametric = T) 
+
+d.models %>%
+  augment(model)
+```
+
+```{r, comment=NA, warning=FALSE, results='hide'}
+# extracting information from models
+
+d.models = spikes %>%
+  group_by(ID) %>%
+  nest() 
+
+print(d.models)
+
+d.models %<>%
+  mutate(
+    model = map(data, function(x) glm(Spikes ~ 1 + Stimulus + Choice, data = x)),
+    coefs = map(model, tidy),
+    goodness = map(model, glance),
+    prediction = map(model, augment)
+  )
+
+print(d.models)
+```
+
+```{r, comment=NA, warning=FALSE, results='hide'}
+# using mutate to nest all grouped data
+
+d.models %>%
+  unnest(prediction, .drop = T)
+```
+
+
+# Week 1
+
+# Q1. Visualize relation between stimulus, choice, and spike rates  
+We want to visualize 20 cells given this large dataset. 
+To extract 20 cells, we created a subset of the data by filtering and ramdomly sampling ID, which provides information on the animal, the cell, and the run. We used the `mutate` and `filter` function to create the subset which is stored under *d.cells*. 
+
+We then used ggplot2 to visualize the relationship between Stimulus (x-axis) and Spikes (y-axis) based on the different choices (near vs. far) 
+
+In the figure, there are 20 panels in total and each of the panel indicates the relationship of Stimulus on Spikes for each specific *monkey*, *cell*, and *run*.
+
+We can see that the effect of Stimlulus on Spikes does not seem to be linear for most cells. 
+
+```{r plot, warning=FALSE, comment=NA, echo=TRUE}
+
+# make subset data for 20 cells
+set.seed(100)
+d.cells = spikes %>%
+  mutate(
+    Choice = as.character(as.numeric(Choice))) %>%
+  filter(BinocularR!=0, 
+         ID %in% sample(levels(.$ID), 20))
+
+# plot data
+ggplot(d.cells, aes(x = Stimulus, y = Spikes, color = Choice, )) + 
+  geom_point(size = 0.5) + facet_wrap(~ID, ncol=5) +
+  geom_smooth() +
+  scale_x_continuous("Stimulus (BinocularR * DisparityFar)") +
+  scale_y_continuous("Spikes (spikes/time)") +
+  scale_color_discrete(name = "Choice", labels = c("Near", "Far")) +
+  labs(title="Visualization of the relationshinp between Stimulus, Choice, and Spike rates") +
+  theme(plot.title = element_text(hjust=0.5))
+  
+```
+
+# Q2. Linear Model 
+
+From the previous figure, we observed that the effect of Stimulus on Spikes does not seem to be linear for most cells. By adding a linear model to the data it forces the fit to be more linear, this is because the model assumes the dependence of spikes on stimulus and choice to be linear.  
+
+To define the linear model, we grouped our subdataset (d.cells) by ID and defined the linear model for spikes as *Spikes = Stimulus + Choice*. 
+
+Using `geom_smooth` in ggplot2 we defined the `method` to equal to `lm` to indicate a linear model. From the output figure we can see that trend lines are more straight compared to the previous figure where the trend lines are more curved. 
+
+```{r echo = TRUE, comment=NA, warning=FALSE}
+
+# define lm model 
+lm_model = 
+  d.cells %>%
+  group_by(ID) %>%
+  do(model = lm(Spikes ~ 1 + Stimulus + Choice, data = .))
+
+# plot lm model 
+ggplot(d.cells, aes(x = Stimulus, y = Spikes, color = Choice)) + 
+  geom_point(size = 0.5) + facet_wrap(~ID, ncol=5) +
+  geom_smooth(method = 'lm') +
+  scale_x_continuous("Stimulus (BinocularR * DisparityFar)") +
+  scale_y_continuous("Spikes (spikes/time)")+
+  scale_color_discrete(name = "Choice", labels = c("Near", "Far")) +
+  labs(title="Linear fit of the relationship between Stimulus, Choice, and Spike rates") +
+  theme(plot.title = element_text(hjust=0.5))
+
+```
+
+# Q3. Partial correlations
+
+To examine the partial correlations from the linear model, we used the `glance` and `tidy` function to view the parameters.
+`glance` provides the goodness-of-fit for the data while `tidy` gives us the coefficents, t-stats, and p-values where we can observe whether there are any significance of Spikes with Stimulus and Choice as predictors for the 20 cells. 
+
+We can use t-statstics of *Choice* as an estimation of partial correlation with *Spikes* because t-statistics is extracted from using both estimate (*slope*) and standard error (*variability*); specifically, *t-statistics = estimate/se*
+
+```{r echo = TRUE, comment=NA, warning=FALSE}
+
+# parameters
+lm_model %>% droplevels() %>% glance(model)
+lm_model %>% droplevels() %>% tidy(model, parametric = T)
+```
+
+```{r echo=FALSE}
+# notes:
+# filter out then select statistics to get partial correlations; calculate the part of the linear predictor that corresponds to choice
+# spikes = alpha + beta1*choice + beta2*stimulus
+# partial effect of choice = beta1*choice 
+```
+
+# Week 2
+
+# Q5. Non-linear fit using Generative Additive Model (GAM)
+
+The GAM model may be a better model to help us fit the data given that our observation of the 20 cells mostly shows a non-linearlity relationship. We grouped our subdataset (d.cells) by ID and then defined the GAM model for Spikes as *Spikes = s(Stimulus) + Choice*; where *s(Stimulus)* is our link function. 
+
+Again we can use the `glance` and `tidy` function to examine the goodness of fit and model parameters.
+
+Visually, we can see that the GAM model fits our data much better. 
+
+```{r echo = TRUE, comment=NA, warning=FALSE}
+
+# defining GAM model
+gam_model = 
+  d.cells %>%
+  group_by(ID) %>%
+  do(model = gam(Spikes ~ 1 + s(Stimulus) + Choice, family = gaussian(identity), data = .))
+
+gam_model %>% droplevels() %>% glance(model)
+gam_model %>% droplevels() %>% tidy(model, parametric = T)
+
+#plot for gam fit
+ggplot(d.cells, aes(x = Stimulus, y = Spikes, color = Choice)) + 
+  geom_point(size = 0.5) + facet_wrap(~ID, ncol=5) +
+  geom_smooth(method = 'gam', formula = y ~ 1 + s(x, bs="cs")) +
+  scale_x_continuous("Stimulus (BinocularR * DisparityFar)") +
+  scale_y_continuous("Spikes (spikes/time)")+
+  scale_color_discrete(name = "Choice", labels = c("Near", "Far")) +
+  labs(title="GAM fit of the relationship between Stimulus, Choice, and Spike rates") +
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+# Q6: Is linear model biased?
+
+Comparing the AIC and BIC between the linear model and the GAM model, some cells' AIC and BIC are similar between the two models but others are not (this depended on the monkey, cell, and run; refering back to the previous visualization, some cells does show more of a linear trend than others). Examining the estimated coeffient values for *Choice* between the linear model and the GAM model it shows that these values are similar. For example, for ID m1c112r4, *Choice* coefficent is *-9.35* for the GAM model, and *-10.12* for the linear model. This may imply that although the linear model does not have a good fit, it may also not necessarily be biased.   
+
+# Q7: Which cells differ most strongly depending on which of the models?
+
+Cells: m2c82r7, m2c147r7, m2c93r6, m2c137r5, m2c152r7
+
+GAM would fit better for these cells than a linear model, thus if we use a liner model/GAM model there will be a larger difference in effect of Choice. 
+
+
+## Session information
+
+```{r session_info, echo=FALSE, results='markup', comment=NA, warning=FALSE}
+devtools::session_info()
+```
