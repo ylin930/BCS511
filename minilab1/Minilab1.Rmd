@@ -14,8 +14,7 @@ library("tidyverse")
 library("magrittr")
 library("mgcv")      # for GAMs
 library("broom")     # for elegant handling of model outputs
-library("ppcor")
-library("lemon")
+library("tidyr")
 
 
 # devtools::install_github("git@github.com:tfjaeger/BCS511minilab1.git")
@@ -143,6 +142,26 @@ ggplot(d.cells, aes(x = Stimulus, y = Spikes, color = Choice)) +
   scale_color_discrete(name = "Choice", labels = c("Near", "Far")) +
   labs(title="Linear fit of the relationship between Stimulus, Choice, and Spike rates") +
   theme(plot.title = element_text(hjust=0.5))
+```
+
+```{r echo = FALSE}
+# plot additive lm model ---------- class (10/24/19)
+
+# lm_model = d.cells %>%
+#   group_by(ID) %>%
+#   nest() %>%
+#   mutate (
+#     model = map(data, .f = function(x) glm(Spikes ~ 1+Stimulus+Choice, data = x)),
+#     coeff = map(model, tidy)
+#   ) %>%
+#   unnest(coeff) %>%
+#   pivot_wider(., names_from = term, id_cols = ID, values_from = estimate)
+
+
+#ggplot(mapping = aes(x=Stimulus, y=Spikes, color=as.factor(Choice)), data = d.cells)+
+  #geom_point(size = 0.5) + facet_wrap(~ID, ncol=5) +
+  #stat_function(fun = "Spikes ~ 1 + Stimulus + Choice", geom = "path")+
+  #geom_line(mapping = aes(x=Stimulus, y=.fitted, color=as.factor(Choice)), data = d.cells(fit))
 
 ```
 
@@ -156,8 +175,8 @@ We can use t-statstics of *Choice* as an estimation of partial correlation with 
 ```{r echo = TRUE, comment=NA, warning=FALSE}
 
 # parameters
-lm_model %>% droplevels() %>% glance(model)
-lm_model %>% droplevels() %>% tidy(model, parametric = T)
+lm_AIC = lm_model %>% droplevels() %>% glance(model)
+lm_stat = lm_model %>% droplevels() %>% tidy(model, parametric = T)
 ```
 
 ```{r echo=FALSE}
@@ -183,10 +202,12 @@ Visually, we can see that the GAM model fits our data much better.
 gam_model = 
   d.cells %>%
   group_by(ID) %>%
-  do(model = gam(Spikes ~ 1 + s(Stimulus) + Choice, family = gaussian(identity), data = .))
+  #do(model = gam(Spikes ~ 1 + s(Stimulus) + Choice, family = gaussian(identity), data = .))
+  do(Spikes = .$Spikes, Stimulus = .$Stimulus, Choice = .$Choice,
+     model = gam(Spikes ~ 1 + s(Stimulus) + Choice, family = gaussian(identity), data = .))
 
-gam_model %>% droplevels() %>% glance(model)
-gam_model %>% droplevels() %>% tidy(model, parametric = T)
+gam_AIC = gam_model %>% droplevels() %>% glance(model)
+gam_stat = gam_model %>% droplevels() %>% tidy(model, parametric = T)
 
 #plot for gam fit
 ggplot(d.cells, aes(x = Stimulus, y = Spikes, color = Choice)) + 
@@ -197,11 +218,50 @@ ggplot(d.cells, aes(x = Stimulus, y = Spikes, color = Choice)) +
   scale_color_discrete(name = "Choice", labels = c("Near", "Far")) +
   labs(title="GAM fit of the relationship between Stimulus, Choice, and Spike rates") +
   theme(plot.title = element_text(hjust=0.5))
+
+
 ```
 
+### Model fit: Linear vs. GAM
+
+```{r comparsionAIC}
+# compare AIC BIC of linear with GAM ---------- class (10/24/19)
+lm_AIC %>% 
+  rename(AIC_lm = AIC) %>% 
+  dplyr::select(ID, AIC_lm) %>% 
+  left_join(
+    gam_AIC%>% 
+      rename(AIC_gam = AIC, BIC_gam = BIC) %>% 
+      dplyr::select(AIC_gam)
+    ) %>%
+  mutate(lm_better = AIC_gam > AIC_lm) %>%
+  ungroup() %>%
+  dplyr::summarise(prop = mean(lm_better))
+
+```
 # Q6: Is linear model biased?
 
 Comparing the AIC and BIC between the linear model and the GAM model, some cells' AIC and BIC are similar between the two models but others are not (this depended on the monkey, cell, and run; refering back to the previous visualization, some cells does show more of a linear trend than others). Examining the estimated coeffient values for *Choice* between the linear model and the GAM model it shows that these values are similar. For example, for ID m1c112r4, *Choice* coefficent is *-9.35* for the GAM model, and *-10.12* for the linear model. This may imply that although the linear model does not have a good fit, it may also not necessarily be biased.   
+
+```{r}
+# compare t- statistics ---------- class (10/24/19)
+# although gam fits better, but the coefficents do not differ - so there's no bias 
+lm_stat %>% 
+  droplevels() %>% 
+  tidy(model, parametric = T) %>%
+  dplyr::filter(term == 'Choice1') %>%
+  dplyr::select(ID, term, statistic) %>%
+  left_join(gam_stat %>%
+              droplevels() %>%
+              tidy(model, parametric = T) %>%
+              dplyr::filter(term =='Choice1') %>%
+              dplyr::select(ID, term, statistic) %>%
+              rename(statistic_gam = statistic)) %>%
+  
+  ggplot(mapping = aes(x = statistic, y = statistic_gam)) +
+  geom_point()+
+  geom_smooth(method = "lm")
+```
 
 # Q7: Which cells differ most strongly depending on which of the models?
 
