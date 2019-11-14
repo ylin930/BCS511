@@ -1,0 +1,194 @@
+---
+title: "BCS 511 Minilab 2 - Psychophysics: Sex-related differences in motion processing?"
+author: "Ying Lin"
+date: "11/1/2019"
+output:
+  pdf_document:
+    latex_engine: xelatex
+    number_sections: no
+    toc: no
+  word_document:
+    toc: no
+  html_document:
+    df_print: paged
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE, results = "markup",
+  fig.align = "center", fig.width = 8)
+
+options(width = 100, mc.cores = 4)
+
+```
+
+```{r libraries, include=FALSE}
+library("tidyverse")
+library("magrittr")
+library("ggeffects")
+library("broom")     # for elegant handling of model outputs
+library("lme4")
+library("lmerTest")
+library("brms")
+
+theme_set(theme_bw())
+```
+
+```{r functions, include=FALSE}
+myCenter = function(x) { return(x - mean(x, na.rm = T)) }
+
+
+prepVars = function(d) {
+  d %<>%
+    mutate_at(
+      vars(
+        one_of(
+          c(
+            "Contrast", 
+            "LogDuration", 
+            "EmphatizingQuotient", 
+            "SystemizingQuotient", 
+            "AutismQuotient", 
+            "ADHD"))),
+      .funs = funs(c = myCenter)
+    ) %>%
+    mutate_at(
+      c("Sex", "VideoGaming"),
+      .fun = factor
+    )
+  
+  contrasts(d$Sex) = cbind("Female vs. Male" = c(-1,1))
+  
+  return(d)
+}
+```
+
+```{r load data, include = FALSE, comment=NA, warning=FALSE}
+load(file = "./data/Minilab2 data-10-30-19.RData")
+```
+
+# 1. Descriptive plots and analysis
+## Visualization of duration thereshold and the other parameters (*Rmax*, *Slope*, and *C50*). Analyzed sex-related effects of all parameters using *t-test* 
+
+We found that the effect of gender for all parameters were significant. 
+
+```{r data formating, include=FALSE, comment=NA, warning=FALSE}
+# omit participant 29 with NA vallues
+d = na.omit(d)
+d.all = d  #keeping a set of original data
+
+# filter out motion task only
+d %<>%
+  filter(Task == "Motion")
+
+# summary data by participant and contrasts
+d.summary =
+  d %>%
+  group_by(Subject, Task, Contrast, Rmax, Slope, C50) %>%
+  summarise(meanLogDuration = mean(LogDuration))
+
+d.summary$Contrast = as.factor(d.summary$Contrast)
+```
+
+```{r plots, comment=NA, warning=FALSE}
+
+# violin plot of mean of LogDuration
+ggplot(d.summary, aes(x = Contrast, y = meanLogDuration, color=Contrast)) + 
+  geom_violin() + geom_point() + theme_classic() + 
+  labs(title = "Violin plot of distribution of Duration Threshold by levels of Contrasts") + 
+  theme(plot.title = element_text(hjust=0.5, size = 20)) +
+  scale_x_discrete("Stimulus Contrasts") +
+  scale_y_continuous("Log Duration Threshold")
+
+# histogram plot for parameters: Rmax, Slope, C50
+ggplot(d.summary, aes(x = Rmax)) + geom_histogram() +
+  theme_classic() + labs(title = "Histogram distribution of Rmax") + 
+  theme(plot.title = element_text(hjust=0.5, size = 20)) +
+  scale_x_continuous("Rmax") +
+  scale_y_continuous("Frequency")
+
+ggplot(d.summary, aes(x = Slope)) +geom_histogram()+
+  theme_classic() + labs(title = "Histogram distribution of Slope") + 
+  theme(plot.title = element_text(hjust=0.5, size = 20)) +
+  scale_x_continuous("Slope") +
+  scale_y_continuous("Frequency")
+
+ggplot(d.summary, aes(x = C50)) +  geom_histogram()+
+  theme_classic() + labs(title = "Histogram distribution of C50") + 
+  theme(plot.title = element_text(hjust=0.5, size = 20)) +
+  scale_x_continuous("C50") +
+  scale_y_continuous("Frequency")
+```
+
+## Analysis: comparing effects of gender on LogDuration, Rmax, Slope, and C50
+
+```{r t-tests, comment=NA, warning=FALSE}
+
+# separate duration summary with parameter summary
+d.contrast_summary =
+  d %>% 
+  group_by(Subject, Contrast, Sex) %>%
+  summarise(meanLogDuration = mean(LogDuration))
+
+d.parameter_summary =
+  d %>%
+  group_by(Subject, Sex, Rmax, Slope, C50, Asymp, LogAsymp, LogC50) %>%
+  summarise()
+
+
+# lm and t-tests 
+tidy(glm(data = d.contrast_summary, meanLogDuration~Contrast + as.factor(Sex)))
+t.test(data = d.parameter_summary, Rmax~as.factor(Sex))
+t.test(data = d.parameter_summary, Slope~as.factor(Sex))
+t.test(data = d.parameter_summary, C50~as.factor(Sex))
+```
+
+# 2. Using alternative measures of parameter Rmax and C50 (*Asymp* and *LogAsymp* instead of *Rmax*; and *LogC50* instead of *C50*)
+
+```{r t-tests2, comment=NA, warning=FALSE}
+# t-tests
+t.test(data = d.parameter_summary, Asymp~as.factor(Sex))
+t.test(data = d.parameter_summary, LogAsymp~as.factor(Sex))
+t.test(data = d.parameter_summary, LogC50~as.factor(Sex))
+  
+# Analysis of paramater after filtering out +/- 3SD of mean 
+
+# Rmax outliers
+d.out_rmax = d.parameter_summary %>%
+  filter(abs(d.parameter_summary$Rmax) < 3*sd(d.parameter_summary$Rmax)+(d.parameter_summary$Rmax)) #error
+
+t.test(data = d.out_rmax, Rmax~as.factor(Sex))  #error
+
+# Slope outliers
+d.out_slope = d.parameter_summary %>%
+  filter(Slope < 3*sd(Slope))
+
+t.test(data = d.out_slope, Slope~as.factor(Sex))  #error
+
+# C50 outliers
+d.out_c50 = d.parameter_summary %>%
+  filter(C50 < 3*sd(C50))
+
+t.test(data = d.out_c50, C50~as.factor(Sex))  #error
+
+```
+
+# 3. Anova - testing whether sex-related effects differ significantly between the four parameters
+
+```{r anova, comment=NA, warning=False}
+
+a <- anova(Rmax ~ Slope + C50, d.parameter_summary)
+tidy(a)
+
+```
+
+
+# References
+
+ * Wheelwright, S., Baron-Cohen, S., Goldenfeld, N., Delaney, J., Fine, D., Smith, R., ... & Wakabayashi, A., 2006). Predicting autism spectrum quotient (AQ) from the systemizing quotient-revised (SQ-R) and empathy quotient (EQ). Brain research, 1079(1), 47-56
+
+# Session info
+```{r session_info, echo=FALSE, results='markup'}
+devtools::session_info()
+```
