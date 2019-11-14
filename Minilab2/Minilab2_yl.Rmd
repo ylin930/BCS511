@@ -98,7 +98,7 @@ d.contrast_summary =
 
 d.parameter_summary =
   d %>%
-  group_by(Subject, Sex, Rmax, Slope, C50, Asymp, LogAsymp, LogC50, Contrast) %>%
+  group_by(Subject, Sex, Rmax, Slope, C50, Asymp, LogAsymp, LogC50, Contrast, VideoGaming) %>%
   summarise()
 
 d.parameter_summary$Sex = as.factor(d.parameter_summary$Sex)
@@ -146,11 +146,18 @@ ggplot(d.parameter_summary, aes(x = C50, fill= Sex)) + geom_histogram() +
 ```{r t-tests, comment=NA, warning=FALSE}
 
 # lm and t-tests 
-# tidy(glm(data = d.contrast_summary, meanLogDuration~Contrast + as.factor(Sex))) # incorrect 
+ 
 t.test(data = d.parameter_summary, Contrast~as.factor(Sex)) # not sig
-t.test(data = d.parameter_summary, Rmax~as.factor(Sex))     # sig
-t.test(data = d.parameter_summary, Slope~as.factor(Sex))    # sig
-t.test(data = d.parameter_summary, C50~as.factor(Sex))      # sig
+# t.test(data = d.parameter_summary, Rmax~as.factor(Sex))     # sig
+# t.test(data = d.parameter_summary, Slope~as.factor(Sex))    # sig
+# t.test(data = d.parameter_summary, C50~as.factor(Sex))      # sig
+
+rmax_t_model = lm(data = d.parameter_summary, Rmax~as.factor(Sex))
+tidy(rmax_t_model)
+slope_t_model = lm(data = d.parameter_summary, Slope~as.factor(Sex)) 
+tidy(slope_t_model)
+C50_t_model = lm(data = d.parameter_summary, C50~as.factor(Sex)) 
+tidy(C50_t_model)
 
 ```
 
@@ -164,24 +171,27 @@ t.test(data = d.parameter_summary, LogC50~as.factor(Sex))   # sig
   
 # Analysis of paramater after filtering out +/- 3SD of mean 
 
-# Rmax outliers
+# Rmax outliers - no outliers (?)
 d.out_rmax = d.parameter_summary %>%
-  mutate(rmax_in = as.factor( abs(d.parameter_summary$Rmax) < 3*sd(d.parameter_summary$Rmax) + mean(d.parameter_summary$Rmax))) %>%
-  filter(rmax_in) #error
+  ungroup() %>%
+  mutate(rmax_in = as.integer(as.logical(abs(d.parameter_summary$Rmax - mean(d.parameter_summary$Rmax)) 
+                                         < 3*sd(d.parameter_summary$Rmax)))) %>%
+  filter(rmax_in == 1)
 
-t.test(data = d.out_rmax, Rmax~as.factor(Sex))  #error
+  t.test(data = d.out_rmax, Rmax~as.factor(Sex))
 
-# Slope outliers
-d.out_slope = d.parameter_summary %>%
-  filter(Slope < 3*sd(Slope))
-
-t.test(data = d.out_slope, Slope~as.factor(Sex))  #error
-
-# C50 outliers
-d.out_c50 = d.parameter_summary %>%
-  filter(C50 < 3*sd(C50))
-
-t.test(data = d.out_c50, C50~as.factor(Sex))  #error
+##### need to edit 
+# # Slope outliers
+# d.out_slope = d.parameter_summary %>%
+#   filter(Slope < 3*sd(Slope))
+# 
+# t.test(data = d.out_slope, Slope~as.factor(Sex))  
+# 
+# # C50 outliers
+# d.out_c50 = d.parameter_summary %>%
+#   filter(C50 < 3*sd(C50))
+# 
+# t.test(data = d.out_c50, C50~as.factor(Sex)) 
 
 ```
 
@@ -189,11 +199,23 @@ t.test(data = d.out_c50, C50~as.factor(Sex))  #error
 
 ```{r anova, comment=NA, warning=False}
 
-a <- anova(Rmax ~ Slope + C50, d.parameter_summary)
-tidy(a)
+anova(rmax_t_model, slope_t_model, test = "Chisq")
+anova(rmax_t_model, C50_t_model, test = "Chisq")
+anova(slope_t_model, C50_t_model, test = "Chisq")
 
 ```
 
+# 5. Individual differences variables
+
+```{r individual differences, comment=NA, warning=False}
+
+# histogram plot for video game by gender
+ggplot(d.parameter_summary) + geom_histogram(aes(x = Rmax, fill= as.factor(VideoGaming)), alpha = 0.8) +
+  geom_density(aes(x = Rmax, color = Sex), alpha = 0.2) +
+  theme_classic() + labs(title = "Histogram distribution of Rmax and Video Gaming") + 
+  theme(plot.title = element_text(hjust=0.5, size = 20))
+
+```
 
 # References
 
