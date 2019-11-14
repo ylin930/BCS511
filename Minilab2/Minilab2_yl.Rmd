@@ -89,32 +89,52 @@ d.summary =
   summarise(meanLogDuration = mean(LogDuration))
 
 d.summary$Contrast = as.factor(d.summary$Contrast)
+
+# separate duration summary with parameter summary
+d.contrast_summary =
+  d %>% 
+  group_by(Subject, Contrast, Sex) %>%
+  summarise(meanLogDuration = mean(LogDuration))
+
+d.parameter_summary =
+  d %>%
+  group_by(Subject, Sex, Rmax, Slope, C50, Asymp, LogAsymp, LogC50, Contrast) %>%
+  summarise()
+
+d.parameter_summary$Sex = as.factor(d.parameter_summary$Sex)
+
 ```
 
 ```{r plots, comment=NA, warning=FALSE}
 
-# violin plot of mean of LogDuration
-ggplot(d.summary, aes(x = Contrast, y = meanLogDuration, color=Contrast)) + 
-  geom_violin() + geom_point() + theme_classic() + 
-  labs(title = "Violin plot of distribution of Duration Threshold by levels of Contrasts") + 
-  theme(plot.title = element_text(hjust=0.5, size = 20)) +
-  scale_x_discrete("Stimulus Contrasts") +
-  scale_y_continuous("Log Duration Threshold")
+# # violin plot of mean of LogDuration
+# ggplot(d.summary, aes(x = Contrast, y = meanLogDuration, color=Contrast)) + 
+#   geom_violin() + geom_point() + theme_classic() + 
+#   labs(title = "Violin plot of distribution of Duration Threshold by levels of Contrasts") + 
+#   theme(plot.title = element_text(hjust=0.5, size = 20)) +
+#   scale_x_discrete("Stimulus Contrasts") +
+#   scale_y_continuous("Log Duration")
 
 # histogram plot for parameters: Rmax, Slope, C50
-ggplot(d.summary, aes(x = Rmax)) + geom_histogram() +
+ggplot(d.parameter_summary, aes(x = Contrast, fill= Sex)) + geom_histogram() +
+  theme_classic() + labs(title = "Histogram distribution of Contrast") + 
+  theme(plot.title = element_text(hjust=0.5, size = 20)) +
+  scale_x_continuous("Contrast") +
+  scale_y_continuous("Frequency")
+
+ggplot(d.parameter_summary, aes(x = Rmax, fill= Sex)) + geom_histogram() +
   theme_classic() + labs(title = "Histogram distribution of Rmax") + 
   theme(plot.title = element_text(hjust=0.5, size = 20)) +
   scale_x_continuous("Rmax") +
   scale_y_continuous("Frequency")
 
-ggplot(d.summary, aes(x = Slope)) +geom_histogram()+
+ggplot(d.parameter_summary, aes(x = Slope, fill= Sex)) + geom_histogram() +
   theme_classic() + labs(title = "Histogram distribution of Slope") + 
   theme(plot.title = element_text(hjust=0.5, size = 20)) +
   scale_x_continuous("Slope") +
   scale_y_continuous("Frequency")
 
-ggplot(d.summary, aes(x = C50)) +  geom_histogram()+
+ggplot(d.parameter_summary, aes(x = C50, fill= Sex)) + geom_histogram() +
   theme_classic() + labs(title = "Histogram distribution of C50") + 
   theme(plot.title = element_text(hjust=0.5, size = 20)) +
   scale_x_continuous("C50") +
@@ -125,38 +145,29 @@ ggplot(d.summary, aes(x = C50)) +  geom_histogram()+
 
 ```{r t-tests, comment=NA, warning=FALSE}
 
-# separate duration summary with parameter summary
-d.contrast_summary =
-  d %>% 
-  group_by(Subject, Contrast, Sex) %>%
-  summarise(meanLogDuration = mean(LogDuration))
-
-d.parameter_summary =
-  d %>%
-  group_by(Subject, Sex, Rmax, Slope, C50, Asymp, LogAsymp, LogC50) %>%
-  summarise()
-
-
 # lm and t-tests 
-tidy(glm(data = d.contrast_summary, meanLogDuration~Contrast + as.factor(Sex)))
-t.test(data = d.parameter_summary, Rmax~as.factor(Sex))
-t.test(data = d.parameter_summary, Slope~as.factor(Sex))
-t.test(data = d.parameter_summary, C50~as.factor(Sex))
+# tidy(glm(data = d.contrast_summary, meanLogDuration~Contrast + as.factor(Sex))) # incorrect 
+t.test(data = d.parameter_summary, Contrast~as.factor(Sex)) # not sig
+t.test(data = d.parameter_summary, Rmax~as.factor(Sex))     # sig
+t.test(data = d.parameter_summary, Slope~as.factor(Sex))    # sig
+t.test(data = d.parameter_summary, C50~as.factor(Sex))      # sig
+
 ```
 
 # 2. Using alternative measures of parameter Rmax and C50 (*Asymp* and *LogAsymp* instead of *Rmax*; and *LogC50* instead of *C50*)
 
 ```{r t-tests2, comment=NA, warning=FALSE}
 # t-tests
-t.test(data = d.parameter_summary, Asymp~as.factor(Sex))
-t.test(data = d.parameter_summary, LogAsymp~as.factor(Sex))
-t.test(data = d.parameter_summary, LogC50~as.factor(Sex))
+t.test(data = d.parameter_summary, Asymp~as.factor(Sex))    # sig
+t.test(data = d.parameter_summary, LogAsymp~as.factor(Sex)) # no sig
+t.test(data = d.parameter_summary, LogC50~as.factor(Sex))   # sig
   
 # Analysis of paramater after filtering out +/- 3SD of mean 
 
 # Rmax outliers
 d.out_rmax = d.parameter_summary %>%
-  filter(abs(d.parameter_summary$Rmax) < 3*sd(d.parameter_summary$Rmax)+(d.parameter_summary$Rmax)) #error
+  mutate(rmax_in = as.factor( abs(d.parameter_summary$Rmax) < 3*sd(d.parameter_summary$Rmax) + mean(d.parameter_summary$Rmax))) %>%
+  filter(rmax_in) #error
 
 t.test(data = d.out_rmax, Rmax~as.factor(Sex))  #error
 
