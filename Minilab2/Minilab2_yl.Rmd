@@ -203,6 +203,7 @@ ggplot(d.parameter_summary, aes(x = Rmax, fill= as.factor(VideoGaming))) + geom_
   scale_x_continuous("Rmax") +
   scale_y_continuous("Frequency")
 
+# include other variables
 ```
 
 # References
