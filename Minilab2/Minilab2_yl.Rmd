@@ -69,12 +69,10 @@ load(file = "./data/Minilab2 data-10-30-19.RData")
 ```
 
 # 1. Descriptive plots and analysis
-## Visualization of duration thereshold and the other parameters (*Rmax*, *Slope*, and *C50*). Analyzed sex-related effects of all parameters using *t-test* 
-
-We found that the effect of gender for all parameters were significant. 
+## Visualization of parameters (*Rmax*, *Slope*, and *C50*).
 
 ```{r data formating, include=FALSE, comment=NA, warning=FALSE}
-# omit participant 29 with NA vallues
+# omit NA vallues
 d = na.omit(d)
 d.all = d  #keeping a set of original data
 
@@ -82,138 +80,128 @@ d.all = d  #keeping a set of original data
 d %<>%
   filter(Task == "Motion")
 
-# summary data by participant and contrasts
-d.summary =
-  d %>%
-  group_by(Subject, Task, Contrast, Rmax, Slope, C50) %>%
-  summarise(meanLogDuration = mean(LogDuration))
-
-d.summary$Contrast = as.factor(d.summary$Contrast)
-
-# separate duration summary with parameter summary
-d.contrast_summary =
-  d %>% 
-  group_by(Subject, Contrast, Sex) %>%
-  summarise(meanLogDuration = mean(LogDuration))
-
+# summary data 
 d.parameter_summary =
   d %>%
-  group_by(Subject, Sex, Rmax, Slope, C50, Asymp, LogAsymp, LogC50, Contrast, VideoGaming) %>%
+  group_by(Subject, Sex, Rmax, Slope, C50, Asymp, LogAsymp, LogC50, VideoGaming) %>%
   summarise()
-
-d.parameter_summary$Sex = as.factor(d.parameter_summary$Sex)
 
 ```
 
 ```{r plots, comment=NA, warning=FALSE}
 
-# # violin plot of mean of LogDuration
-# ggplot(d.summary, aes(x = Contrast, y = meanLogDuration, color=Contrast)) + 
-#   geom_violin() + geom_point() + theme_classic() + 
-#   labs(title = "Violin plot of distribution of Duration Threshold by levels of Contrasts") + 
-#   theme(plot.title = element_text(hjust=0.5, size = 20)) +
-#   scale_x_discrete("Stimulus Contrasts") +
-#   scale_y_continuous("Log Duration")
-
-# histogram plot for parameters: Rmax, Slope, C50
-ggplot(d.parameter_summary, aes(x = Contrast, fill= Sex)) + geom_histogram() +
-  theme_classic() + labs(title = "Histogram distribution of Contrast") + 
-  theme(plot.title = element_text(hjust=0.5, size = 20)) +
-  scale_x_continuous("Contrast") +
-  scale_y_continuous("Frequency")
-
-ggplot(d.parameter_summary, aes(x = Rmax, fill= Sex)) + geom_histogram() +
+ggplot(d.parameter_summary, aes(x = Rmax, fill= as.factor(Sex))) + 
+  geom_histogram(alpha = 0.8, position = position_dodge()) +
   theme_classic() + labs(title = "Histogram distribution of Rmax") + 
   theme(plot.title = element_text(hjust=0.5, size = 20)) +
   scale_x_continuous("Rmax") +
   scale_y_continuous("Frequency")
 
-ggplot(d.parameter_summary, aes(x = Slope, fill= Sex)) + geom_histogram() +
+ggplot(d.parameter_summary, aes(x = Slope, fill= as.factor(Sex))) + geom_histogram(alpha = 0.8, position = position_dodge()) +
   theme_classic() + labs(title = "Histogram distribution of Slope") + 
   theme(plot.title = element_text(hjust=0.5, size = 20)) +
   scale_x_continuous("Slope") +
   scale_y_continuous("Frequency")
 
-ggplot(d.parameter_summary, aes(x = C50, fill= Sex)) + geom_histogram() +
+ggplot(d.parameter_summary, aes(x = C50, fill= as.factor(Sex))) + geom_histogram(alpha = 0.8, position = position_dodge()) +
   theme_classic() + labs(title = "Histogram distribution of C50") + 
   theme(plot.title = element_text(hjust=0.5, size = 20)) +
   scale_x_continuous("C50") +
   scale_y_continuous("Frequency")
 ```
 
-## Analysis: comparing effects of gender on LogDuration, Rmax, Slope, and C50
+## Analysis: comparing effects of gender on Rmax, Slope, and C50
+Using a linear regression model to access if gender (0 = male, 1 = female) has a significant effect on Rmax, Slope and C50.
 
-```{r t-tests, comment=NA, warning=FALSE}
+*Rmax*: We found a significant difference of Rmax ($\hat\beta$ = -0.02, *t* = 0.005, *p* < .001) between men and women. Suggesting that women converage against higher minimal duration threshold in the motion processing task. 
+*Slope*: We did not find a significant difference of Slopw ($\hat\beta$ = 0.72, *t* = 0.70, *p* > .05).
+*C50*: Lastly, we also found a significant difference of C50 ($\hat\beta$ = -2.09, *t* = -2.41, *p* < 0.05), suggesting that women shows a lower C50 value than men. 
 
-# lm and t-tests 
- 
-t.test(data = d.parameter_summary, Contrast~as.factor(Sex)) # not sig
-# t.test(data = d.parameter_summary, Rmax~as.factor(Sex))     # sig
-# t.test(data = d.parameter_summary, Slope~as.factor(Sex))    # sig
-# t.test(data = d.parameter_summary, C50~as.factor(Sex))      # sig
+```{r lm, comment=NA, warning=FALSE}
 
-rmax_t_model = lm(data = d.parameter_summary, Rmax~as.factor(Sex))
-tidy(rmax_t_model)
-slope_t_model = lm(data = d.parameter_summary, Slope~as.factor(Sex)) 
-tidy(slope_t_model)
-C50_t_model = lm(data = d.parameter_summary, C50~as.factor(Sex)) 
-tidy(C50_t_model)
+# Rmax
+rmax_model = lm(data = d.parameter_summary, Rmax~as.factor(Sex))
+tidy(rmax_model)
 
+# Slope
+slope_model = lm(data = d.parameter_summary, Slope~as.factor(Sex)) 
+tidy(slope_model)
+
+# C50; depends on excluding outliers or not 
+C50_model = lm(data = d.parameter_summary, C50~as.factor(Sex)) 
+tidy(C50_model)
+
+d.parameter_summary %>%
+  ungroup() %>%
+  mutate(s.C50 = as.numeric(scale(C50)))
 ```
 
 # 2. Using alternative measures of parameter Rmax and C50 (*Asymp* and *LogAsymp* instead of *Rmax*; and *LogC50* instead of *C50*)
 
+Using alternative measures of parameters we found a significant sex difference between men and women for 
+Log of C50 (*t* = -4.60 ,*p* < 0.05) and Asymp (*t* = -4.06, *p* < 0.05) but not for Log of Asymp (*t* = 0.40, *p* > 0.05). This suggests that different transformations of a parameter does influence the significance of a finding. 
+
+We also examined outliers of +/- 3SD from the mean for Rmax, Slope, and C50. The significance of the linear model still holds for Rmax and C50 after removal of outliers.
+
 ```{r t-tests2, comment=NA, warning=FALSE}
+
 # t-tests
-t.test(data = d.parameter_summary, Asymp~as.factor(Sex))    # sig
-t.test(data = d.parameter_summary, LogAsymp~as.factor(Sex)) # no sig
-t.test(data = d.parameter_summary, LogC50~as.factor(Sex))   # sig
+t.test(data = d.parameter_summary, Asymp~as.factor(Sex))    # 1/rmax 
+t.test(data = d.parameter_summary, LogAsymp~as.factor(Sex)) # log 1/rmax - duration is usually analyze by log duration (aka, -log rmax)
+t.test(data = d.parameter_summary, LogC50~as.factor(Sex))   # log C50
   
 # Analysis of paramater after filtering out +/- 3SD of mean 
 
-# Rmax outliers - no outliers (?)
+# no outliers for Rmax (within 3SD); transformation will not be the same 
 d.out_rmax = d.parameter_summary %>%
   ungroup() %>%
-  mutate(rmax_in = as.integer(as.logical(abs(d.parameter_summary$Rmax - mean(d.parameter_summary$Rmax)) 
-                                         < 3*sd(d.parameter_summary$Rmax)))) %>%
+  mutate(rmax_in = abs(scale(Rmax)) < 3) %>% 
   filter(rmax_in == 1)
+  # mutate(rmax_in = as.integer(as.logical(abs(d.parameter_summary$Rmax - mean(d.parameter_summary$Rmax)) 
+                                         # < 3*sd(d.parameter_summary$Rmax)))) %>%
+  
+  tidy(lm(data = d.out_rmax, Rmax~as.factor(Sex)))
+  
+  
+d.out_slope = d.parameter_summary %>%
+  ungroup() %>%
+  mutate(slope_in = abs(scale(Slope)) < 3) %>% 
+  filter(slope_in == 1)
 
-  t.test(data = d.out_rmax, Rmax~as.factor(Sex))
+  tidy(lm(data = d.out_slope, Slope~as.factor(Sex)))
+  
+  
+d.out_c50 = d.parameter_summary %>%
+  ungroup() %>%
+  mutate(c50_in = abs(scale(C50)) < 3) %>% 
+  filter(c50_in == 1)
 
-##### need to edit 
-# # Slope outliers
-# d.out_slope = d.parameter_summary %>%
-#   filter(Slope < 3*sd(Slope))
-# 
-# t.test(data = d.out_slope, Slope~as.factor(Sex))  
-# 
-# # C50 outliers
-# d.out_c50 = d.parameter_summary %>%
-#   filter(C50 < 3*sd(C50))
-# 
-# t.test(data = d.out_c50, C50~as.factor(Sex)) 
+  tidy(lm(data = d.out_slope, C50~as.factor(Sex)))
 
 ```
 
 # 3. Anova - testing whether sex-related effects differ significantly between the four parameters
 
-```{r anova, comment=NA, warning=False}
-
-anova(rmax_t_model, slope_t_model, test = "Chisq")
-anova(rmax_t_model, C50_t_model, test = "Chisq")
-anova(slope_t_model, C50_t_model, test = "Chisq")
+```{r anova, comment=NA, warning=FALSE}
+# only if the interaction is significant that sex effects of two measures are different  
+anova(rmax_model, slope_model, test = "Chisq")
+anova(rmax_model, C50_model, test = "Chisq")
+anova(slope_model, C50_model, test = "Chisq")
 
 ```
 
 # 5. Individual differences variables
 
-```{r individual differences, comment=NA, warning=False}
+```{r individual differences, comment=NA, warning = FALSE}
+# DV ~(Sex + ADHD...) * measure --- how does individuals differences affect Rmax
+# if sex becames non-significant, possibly that the effect is from (ex.)ADHD that is mediated by sex
 
-# histogram plot for video game by gender
-ggplot(d.parameter_summary) + geom_histogram(aes(x = Rmax, fill= as.factor(VideoGaming)), alpha = 0.8) +
-  geom_density(aes(x = Rmax, color = Sex), alpha = 0.2) +
-  theme_classic() + labs(title = "Histogram distribution of Rmax and Video Gaming") + 
-  theme(plot.title = element_text(hjust=0.5, size = 20))
+# histogram plot for video game
+ggplot(d.parameter_summary, aes(x = Rmax, fill= as.factor(VideoGaming))) + geom_histogram(alpha = 0.8, position = position_dodge()) +
+  theme_classic() + labs(title = "Histogram distribution of Rmax") + 
+  theme(plot.title = element_text(hjust=0.5, size = 20)) +
+  scale_x_continuous("Rmax") +
+  scale_y_continuous("Frequency")
 
 ```
 
